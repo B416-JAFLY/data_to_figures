@@ -68,7 +68,7 @@ def execute_code(code, output_path):
     except Exception as e:
         raise RuntimeError(f"代码执行出错: {e}")
 
-def handle_retry(messages, max_retries):
+def handle_retry(messages, max_retries, output_path):
     """处理错误并重试调用 Claude API"""
     retries = 0
     while retries < max_retries:
@@ -77,7 +77,6 @@ def handle_retry(messages, max_retries):
         
         if response:
             print("收到 Claude 的代码:\n", response)
-            output_path = os.path.join(tempfile.gettempdir(), "recreated_image.png")
             try:
                 execute_code(response, output_path)
                 print("图表生成成功！")
@@ -121,6 +120,12 @@ def handle_retry(messages, max_retries):
 def main():
     # 用户上传图片路径
     image_path = input("请输入图片路径: ")
+    # 提取图片文件名（不含路径）并获取当前日期
+    image_name = os.path.splitext(os.path.basename(image_path))[0]
+    date_str = datetime.now().strftime("%Y%m%d_%H%M")
+    
+    output_path = f"{date_str}_{image_name}.png"
+
     # 读取图片并编码为 Base64
     image_data, media_type = encode_image_to_base64(image_path)
     
@@ -157,7 +162,7 @@ def main():
         }
     ]
 
-    is_success , code = handle_retry(messages, max_retries=3)
+    is_success , code = handle_retry(messages, max_retries=3, output_path=output_path)
 
     if is_success:
         if "```python" in code and "```" in code:
@@ -181,10 +186,6 @@ def main():
         ]
         response = call_claude_api(messages)
         doc= response[0].text
-
-        # 提取图片文件名（不含路径）并获取当前日期
-        image_name = os.path.splitext(os.path.basename(image_path))[0]
-        date_str = datetime.now().strftime("%Y%m%d_%H%M")
 
         # 构造文件名
         json_filename = f"{date_str}_{image_name}.json"
