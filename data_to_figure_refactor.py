@@ -3,6 +3,8 @@ import anthropic
 import matplotlib.pyplot as plt
 import tempfile
 import os
+from datetime import datetime
+import json
 
 def encode_image_to_base64(image_path):
     """将图片转换为 Base64 格式，并返回图片的媒体类型"""
@@ -28,7 +30,7 @@ def call_claude_api(messages):
     client = anthropic.Anthropic()
     response = client.messages.create(
         model="claude-3-5-sonnet-20241022",
-        max_tokens=1024,
+        max_tokens=2048,
         messages=messages
     )   
     """调用 Claude API 获取代码回复"""
@@ -79,7 +81,7 @@ def handle_retry(messages, max_retries):
             try:
                 execute_code(response, output_path)
                 print("图表生成成功！")
-                return
+                return True, response[0].text
             except RuntimeError as e:
                 print(f"执行代码失败: {e}")
                 error_info = str(e)
@@ -114,6 +116,7 @@ def handle_retry(messages, max_retries):
             retries += 1
 
     print("已达到最大重试次数，无法成功生成图表。")
+    return False, None
 
 def main():
     # 用户上传图片路径
@@ -132,6 +135,7 @@ def main():
 2.你绘制的图像应该保存在一个plt对象中，以便我提取回传到其他逻辑里
 3.在添加颜色条时，确保绑定到正确的图形对象 (使用 fig.colorbar)。
 4.避免出现紧凑布局与颜色条冲突的问题。
+5.我的环境中没有GUI界面，不要出现plt.show()
   """
     messages = [
         {
@@ -152,7 +156,44 @@ def main():
             ],
         }
     ]
-    handle_retry(messages, max_retries=3)
+
+    is_success , code = handle_retry(messages, max_retries=3)
+
+    if is_success:
+        if "```python" in code and "```" in code:
+            code = code.split("```python\n", 1)[-1].split("```", 1)[0]
+        print("保存代码和文档")
+        print("正在调用 Claude API...")
+        prompt = f"""
+请你帮我把下面的代码抽象为一个函数，函数名为generate_figure，函数的输入参数为图像所需要的路径，以及一些可以自定义的参数（如色彩、样式等），这些参数要有一个默认值。函数的输出为一个plt对象。下面是我需要你帮忙处理的代码：
+{code}
+"""        
+        messages =[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt,
+                    },
+                ],
+            },
+        ]
+        response = call_claude_api(messages)
+        doc= response[0].text
+
+        # 提取图片文件名（不含路径）并获取当前日期
+        image_name = os.path.splitext(os.path.basename(image_path))[0]
+        date_str = datetime.now().strftime("%Y%m%d_%H%M")
+
+        # 构造文件名
+        json_filename = f"{date_str}_{image_name}.json"
+
+        # 将 code 和 doc 保存到 JSON 文件
+        with open(json_filename, 'w', encoding='utf-8') as json_file:
+            json.dump({"code": code, "doc": doc}, json_file, ensure_ascii=False, indent=4)
+
+        print(f"代码和文档已成功保存为 {json_filename}")
     
 if __name__ == "__main__":
     main()
