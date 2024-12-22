@@ -19,4 +19,6 @@ message = client.messages.create(
         }
     ]
 )
+print(message)
 print(message.content)
+print(message.content[0].text)
