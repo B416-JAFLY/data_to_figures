@@ -48,6 +48,28 @@ def encode_image_to_base64(image_path):
     
     return image_data, media_type
 
+def count_tokens_and_estimate_cost(response):
+    # 获取输入和输出 token 数
+    input_tokens = response.usage.input_tokens
+    output_tokens = response.usage.output_tokens
+
+    # 定价
+    cost_per_tok_input = 3.00 / 1000000  # 每token 输入成本
+    cost_per_tok_output = 15.00 / 1000000  # 每 token 输出成本
+
+    # 计算费用
+    input_cost = input_tokens * cost_per_tok_input
+    output_cost = output_tokens * cost_per_tok_output
+    total_cost = input_cost + output_cost
+    total_tokens = input_tokens + output_tokens
+
+    # 使用 Streamlit 输出
+    st.write("### Token 使用情况和费用估算")
+    st.write(f"- 输入 tokens: {input_tokens}")
+    st.write(f"- 输出 tokens: {output_tokens}")
+    st.write(f"- 总 tokens: {total_tokens}")
+    st.write(f"- 预计费用: ${total_cost:.2f}")
+
 def call_claude_api(messages):
     """调用 Claude API 获取代码回复"""
     client = anthropic.Anthropic()
@@ -58,6 +80,7 @@ def call_claude_api(messages):
     )   
     
     if response:
+        count_tokens_and_estimate_cost(response)
         return response.content
     else:
         st.error("API 调用失败")
