@@ -125,6 +125,8 @@ def main():
         image_path = os.path.join(temp_dir, image_name)
         with open(image_path, "wb") as f:
             f.write(uploaded_file.read())
+        # 在 Streamlit 中显示上传的图片
+        st.image(image_path, caption="上传的图片预览", use_container_width=True)
 
         image_data, media_type = encode_image_to_base64(image_path)
 
