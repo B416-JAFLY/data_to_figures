@@ -17,8 +17,14 @@ I-->E
 G-->|是|H[失败]
 F-->|执行成功|J[图片]
 ```
-![](./example_image.png)
-![](./recreated_example_image.png)
+
+<div style="display: flex; justify-content: space-between;">
+  <img src="./example_image.png" alt="Image 1" style="width: 49%;"/>
+  
+  <img src="./recreated_example_image.png" alt="Image 2" style="width: 49%;"/>
+</div>
+左侧是原图，右侧是生成的图片
+
 ## 功能模块
 1. **图像编码**：将用户上传的图像转换为 Base64 格式，用于 API 请求。
 2. **Claude API 调用**：根据用户提供的图像及提示词生成 Python 绘图代码。
