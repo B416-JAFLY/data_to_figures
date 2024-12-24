@@ -18,12 +18,15 @@ G-->|是|H[失败]
 F-->|执行成功|J[图片]
 ```
 
-<div style="display: flex; justify-content: space-between;">
-  <img src="./example_image.png" alt="Image 1" style="width: 49%;"/>
-  
-  <img src="./recreated_example_image.png" alt="Image 2" style="width: 49%;"/>
-</div>
-左侧是原图，右侧是生成的图片
+## 用法
+1. 安装依赖
+```bash
+pip install -r requirements.txt
+```
+2. 启动streamlit
+```bash
+streamlit run app.py
+```
 
 ## 功能模块
 1. **图像编码**：将用户上传的图像转换为 Base64 格式，用于 API 请求。
@@ -32,21 +35,18 @@ F-->|执行成功|J[图片]
 4. **错误处理与重试机制**：在代码执行失败时，重新提示 Claude API 修正错误并重试生成图像，more最大重试3次。
 5. **代码与文档输出**：将生成的代码与注释保存为 JSON 文件。
 
-## 依赖环境
-
-- `base64`
-- `anthropic`
-- `matplotlib`
-- `tempfile`
-- `os`
-- `datetime`
-- `json`
-
-## 示例结果
+## 示例
 
 ### 输入：
 - 图片路径：`/path/to/image.png`
 
 ### 输出：
-- 生成的图像文件：`20241222_image.png`
-- 生成的 JSON 文件：`20241222_image.json`
+- 生成的图像文件：`20241222_1812_image.png`
+- 生成的 JSON 文件：`20241222_1812_image.json`
+
+<div style="display: flex; justify-content: space-between;">
+  <img src="./example_image.png" alt="Image 1" style="width: 49%;"/>
+  
+  <img src="./recreated_example_image.png" alt="Image 2" style="width: 49%;"/>
+</div>
+左侧是原图，右侧是生成的图片
