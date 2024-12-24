@@ -17,8 +17,8 @@ I-->E
 G-->|是|H[失败]
 F-->|执行成功|J[图片]
 ```
-![](./image.png)
-![](./recreated_image1.png)
+![](./example_image.png)
+![](./recreated_example_image.png)
 ## 功能模块
 1. **图像编码**：将用户上传的图像转换为 Base64 格式，用于 API 请求。
 2. **Claude API 调用**：根据用户提供的图像及提示词生成 Python 绘图代码。
