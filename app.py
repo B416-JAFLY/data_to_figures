@@ -7,6 +7,28 @@ import os
 from datetime import datetime
 import json
 
+prompt_example_img = """
+观察上面的图像，图像中是一个什么样的曲线？曲线中有哪些要素？
+1.请你帮我使用Python代码复现这张figures
+2.复现的时候，尤其注意原图的色彩风格，图形样式，力求与原图一致
+3.如果你读取图中数据有困难，可以自己生成示例数据
+注意，我会将你回答的内容直接放进一个exec(code, {"plt": plt})语句中，所以:
+1.请你保证你返回的内容直接就是一个可以执行的代码，不要包括解释或者markdown元素等内容
+2.你绘制的图像应该保存在一个plt对象中，以便我提取回传到其他逻辑里
+3.在添加颜色条时，确保绑定到正确的图形对象 (使用 fig.colorbar)。
+4.避免出现紧凑布局与颜色条冲突的问题。
+5.我的环境中没有GUI界面，不要出现plt.show()
+"""
+
+prompt_doc = f"""
+请你帮我把下面的代码抽象为一个函数，要求如下:
+1.函数名为generate_figure，
+2.函数的输入参数为图像所需要的路径，以及一些可以自定义的参数（如色彩、样式等），这些参数要有一个默认值。
+3.函数的输出为一个plt对象。
+4.函数中所有的注释、参数解释都应当使用中文
+5.下面是我需要你帮忙处理的代码：
+"""
+
 def encode_image_to_base64(image_path):
     """将图片转换为 Base64 格式，并返回图片的媒体类型"""
     with open(image_path, "rb") as f:
@@ -78,7 +100,7 @@ def handle_retry(messages, max_retries, output_path):
             except RuntimeError as e:
                 print(f"执行代码失败: {e}")
                 error_info = str(e)
-                new_prompt = (
+                prompt_debug = (
                     f"你的代码出现错误，\n"
                     f"代码执行出错的错误信息：{error_info}\n"
                     "请检查并修正上面的代码。"
@@ -98,7 +120,7 @@ def handle_retry(messages, max_retries, output_path):
                         "content": [
                             {
                                 "type": "text",
-                                "text": new_prompt,
+                                "text": prompt_debug,
                             },
                         ],
                     },
@@ -130,20 +152,7 @@ def main():
 
         image_data, media_type = encode_image_to_base64(image_path)
 
-        prompt = """
-        观察上面的图像，图像中是一个什么样的曲线？曲线中有哪些要素？
-        1.请你帮我使用Python代码复现这张figures
-        2.复现的时候，尤其注意原图的色彩风格，图形样式，力求与原图一致
-        3.如果你读取图中数据有困难，可以自己生成示例数据
-        注意，我会将你回答的内容直接放进一个exec(code, {"plt": plt})语句中，所以:
-        1.请你保证你返回的内容直接就是一个可以执行的代码，不要包括解释或者markdown元素等内容
-        2.你绘制的图像应该保存在一个plt对象中，以便我提取回传到其他逻辑里
-        3.在添加颜色条时，确保绑定到正确的图形对象 (使用 fig.colorbar)。
-        4.避免出现紧凑布局与颜色条冲突的问题。
-        5.我的环境中没有GUI界面，不要出现plt.show()
-        """
-
-        messages = [
+        messages_example_img = [
             {
                 "role": "user",
                 "content": [
@@ -157,13 +166,13 @@ def main():
                     },
                     {
                         "type": "text",
-                        "text": prompt,
+                        "text": prompt_example_img,
                     },
                 ],
             }
         ]
 
-        is_success, code = handle_retry(messages, max_retries=3, output_path=output_path)
+        is_success, code = handle_retry(messages_example_img, max_retries=3, output_path=output_path)
 
         if is_success:
             if "```python" in code and "```" in code:
@@ -171,22 +180,14 @@ def main():
             st.write("生成的代码:")
             st.code(code)
 
-            prompt = f"""
-请你帮我把下面的代码抽象为一个函数，要求如下:
-1.函数名为generate_figure，
-2.函数的输入参数为图像所需要的路径，以及一些可以自定义的参数（如色彩、样式等），这些参数要有一个默认值。
-3.函数的输出为一个plt对象。
-4.函数中所有的注释、参数解释都应当使用中文
-5.下面是我需要你帮忙处理的代码：
-{code}
-"""
-            messages = [
+
+            messages_doc = [
                 {
                     "role": "user",
-                    "content": [{"type": "text", "text": prompt}],
+                    "content": [{"type": "text", "text": prompt_doc+code}],
                 },
             ]
-            response = call_claude_api(messages)
+            response = call_claude_api(messages_doc)
             doc= response[0].text
 
             st.write("生成的文档:")
