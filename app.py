@@ -109,54 +109,65 @@ def execute_code(code, output_path):
     except Exception as e:
         raise RuntimeError(f"代码执行出错: {e}")
 
-def handle_retry(messages, max_retries, output_path):
-    retries = 0
-    while retries < max_retries:
-        st.info("正在调用 Claude API...")
-        response = call_claude_api(messages)
+def initialize_session_state():
+    """初始化session state变量"""
+    if 'generation_count' not in st.session_state:
+        st.session_state.generation_count = 0
+    if 'current_code' not in st.session_state:
+        st.session_state.current_code = None
+    if 'conversation_history' not in st.session_state:
+        st.session_state.conversation_history = None
+    if 'is_generated' not in st.session_state:
+        st.session_state.is_generated = False
+    if 'is_satisfied' not in st.session_state:
+        st.session_state.is_satisfied = False
 
-        if response:
-            # st.code(response)
-            try:
-                execute_code(response, output_path)
-                return True, response[0].text
-            except RuntimeError as e:
-                print(f"执行代码失败: {e}")
-                error_info = str(e)
-                prompt_debug = (
-                    f"你的代码出现错误，\n"
-                    f"代码执行出错的错误信息：{error_info}\n"
-                    "请检查并修正上面的代码。"
-                )
-                messages = messages + [
-                    {
-                        "role": "assistant",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": response[0].text,
-                            },
-                        ],
-                    },
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": prompt_debug,
-                            },
-                        ],
-                    },
-                ]
-                retries += 1
-
-    st.error("已达到最大重试次数，无法成功生成图表。 ")
+def generate_new_image(conversation_history, output_path):
+    """生成新的图像"""
+    st.info("正在调用 Claude API...")
+    response = call_claude_api(conversation_history)
+    
+    if response:
+        try:
+            execute_code(response, output_path)
+            code = response[0].text
+            if "```python" in code and "```" in code:
+                code = code.split("```python\n", 1)[-1].split("```", 1)[0]
+            st.code(code)
+            return True, code
+        except RuntimeError as e:
+            error_info = str(e)
+            st.error(f"执行代码失败: {error_info}")
+            return False, None
     return False, None
+
+def handle_regeneration():
+    """处理重新生成的回调函数"""
+    new_prompt = st.session_state.new_prompt
+    if new_prompt:
+        st.session_state.conversation_history.append({
+            "role": "assistant",
+            "content": [{"type": "text", "text": st.session_state.current_code}]
+        })
+        st.session_state.conversation_history.append({
+            "role": "user",
+            "content": [{"type": "text", "text": new_prompt}]
+        })
+        st.session_state.generation_count += 1
+        st.session_state.is_generated = False
+    else:
+        st.warning("请先输入补充说明")
+
+def handle_satisfaction():
+    """处理用户满意的回调函数"""
+    st.session_state.is_satisfied = True
 
 def main():
     st.title("图像到代码工具")
     st.write("上传图像，调用 Claude API 将其转换为 Python 代码。")
-
+    
+    initialize_session_state()
+    
     uploaded_file = st.file_uploader("上传图片", type=["png", "jpg", "jpeg", "gif", "webp"])
 
     if uploaded_file:
@@ -170,48 +181,78 @@ def main():
         image_path = os.path.join(temp_dir, image_name)
         with open(image_path, "wb") as f:
             f.write(uploaded_file.read())
-        # 在 Streamlit 中显示上传的图片
+        
         st.image(image_path, caption="上传的图片预览", use_container_width=True)
 
-        image_data, media_type = encode_image_to_base64(image_path)
-
-        messages_example_img = [
-            {
-                "role": "user",
-                "content": [
+        # 如果是首次生成或需要重新生成
+        if not st.session_state.is_generated:
+            if st.session_state.generation_count == 0:
+                # 首次生成
+                image_data, media_type = encode_image_to_base64(image_path)
+                st.session_state.conversation_history = [
                     {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": image_data,
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": prompt_example_img,
-                    },
-                ],
-            }
-        ]
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": media_type,
+                                    "data": image_data,
+                                },
+                            },
+                            {
+                                "type": "text",
+                                "text": prompt_example_img,
+                            },
+                        ],
+                    }
+                ]
+            
+            success, code = generate_new_image(
+                st.session_state.conversation_history,
+                output_path
+            )
+            
+            if success:
+                st.session_state.current_code = code
+                st.session_state.is_generated = True
 
-        is_success, code = handle_retry(messages_example_img, max_retries=3, output_path=output_path)
+        # 只有在成功生成图像后才显示反馈界面
+        if st.session_state.is_generated and not st.session_state.is_satisfied:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.button(
+                    "满意，继续下一步",
+                    on_click=handle_satisfaction,
+                    key=f"satisfy_button_{st.session_state.generation_count}"
+                )
+            
+            with col2:
+                st.write("不满意？请提供更详细的要求：")
+                st.text_area(
+                    "补充说明",
+                    key="new_prompt",
+                    on_change=handle_regeneration
+                )
+                st.button(
+                    "重新生成",
+                    on_click=handle_regeneration,
+                    key=f"regenerate_button_{st.session_state.generation_count}"
+                )
 
-        if is_success:
-            if "```python" in code and "```" in code:
-                code = code.split("```python\n", 1)[-1].split("```", 1)[0]
-            st.write("生成的代码:")
-            st.code(code)
-
-
+        # 如果用户满意，继续下一步
+        if st.session_state.is_satisfied:
+            st.success("已确认图像生成结果，正在生成函数文档...")
+            
             messages_doc = [
                 {
                     "role": "user",
-                    "content": [{"type": "text", "text": prompt_doc+code}],
+                    "content": [{"type": "text", "text": prompt_doc + st.session_state.current_code}],
                 },
             ]
             response = call_claude_api(messages_doc)
-            doc= response[0].text
+            doc = response[0].text
 
             st.write("生成的文档:")
             st.write(doc)
@@ -221,9 +262,13 @@ def main():
 
             # 将 code 和 doc 保存到 JSON 文件
             with open(json_filename, 'w', encoding='utf-8') as json_file:
-                json.dump({"code": code, "doc": doc}, json_file, ensure_ascii=False, indent=4)
+                json.dump({
+                    "code": st.session_state.current_code, 
+                    "doc": doc,
+                    "conversation_history": st.session_state.conversation_history
+                }, json_file, ensure_ascii=False, indent=4)
 
-            st.success(f"代码和文档已成功保存为 {json_filename}")
+            st.success(f"代码、文档和对话历史已成功保存为 {json_filename}")
 
 if __name__ == "__main__":
     main()
